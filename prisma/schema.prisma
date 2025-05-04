@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User model
+model User {
+  id            String        @id @default(uuid())
+  userId        String        @unique
+  password      String
+  phoneNumber   String
+  credits       Int           @default(0)
+  expiryDate    DateTime?
+  isAdmin       Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  phoneExports  PhoneExport[]
+  creditTopups  CreditTopup[]
+}
+
+// Phone export model
+model PhoneExport {
+  id        String   @id @default(uuid())
+  userId    String
+  fileName  String
+  count     Int
+  format    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// Credit topup model
+model CreditTopup {
+  id               String   @id @default(uuid())
+  userId           String
+  amount           Float
+  slipImageUrl     String
+  status           String   @default("pending") // pending, approved, rejected
+  bankAccount      String?
+  transactionTime  DateTime?
+  ocrData          Json?
+  adminNote        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+// Contact information model
+model ContactInfo {
+  id             String   @id @default(uuid())
+  title          String?
+  description    String?
+  phone          String?
+  email          String?
+  line           String?
+  telegram       String?
+  lineQrCode     String?
+  telegramQrCode String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Bank accounts for credit topup
+model BankAccount {
+  id            String   @id @default(uuid())
+  bankName      String
+  accountName   String
+  accountNumber String
+  qrCodeUrl     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Phone number storage (temporary for export)
+model PhoneNumber {
+  id        String   @id @default(uuid())
+  userId    String
+  number    String
+  batch     String?  // For grouping exports
+  createdAt DateTime @default(now())
+}

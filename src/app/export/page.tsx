@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -58,7 +58,7 @@ export default function ExportPage() {
     success: boolean;
     totalCount: number;
     phones: string[];
-    filePath: string;
+    allPhones: string[];
   } | null>(null);
   const [exportResult, setExportResult] = useState<{
     success: boolean;
@@ -66,6 +66,25 @@ export default function ExportPage() {
     files: string[];
   } | null>(null);
   const [savedToDb, setSavedToDb] = useState(false);
+
+  // State สำหรับข้อมูลใน DB
+  const [dbCount, setDbCount] = useState<number>(0);
+
+  // useEffect สำหรับเช็ก count ข้อมูลใน DB
+  useEffect(() => {
+    async function fetchDbCount() {
+      if (!user) return;
+      try {
+        const res = await fetch('/api/phones?userId=' + user.id);
+        const data = await res.json();
+        setDbCount(data.count || 0);
+      } catch {}
+    }
+    fetchDbCount();
+  }, [user, savedToDb]);
+
+  // เปลี่ยนตัวแปรไว้ใช้ในการ enable ปุ่ม export
+  const canExport = dbCount > 0;
 
   // สร้าง form ด้วย react-hook-form และ zod validation
   const form = useForm<ExportValues>({
@@ -125,7 +144,11 @@ export default function ExportPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setUploadResult(data);
+        // ใช้งาน allPhones (phones ทั้งหมด)
+        setUploadResult({
+          ...data,
+          allPhones: data.phones,
+        });
         toast.success(`อัปโหลดสำเร็จ พบเบอร์โทรศัพท์ ${data.totalCount} เบอร์`);
 
         // ตั้งค่าชื่อไฟล์เริ่มต้นเป็นชื่อไฟล์ที่อัปโหลด (ไม่รวมนามสกุล)
@@ -166,7 +189,7 @@ export default function ExportPage() {
         },
         body: JSON.stringify({
           userId: user.id,
-          phones: uploadResult.phones,
+          phones: uploadResult?.allPhones || [],
         }),
       });
 
@@ -186,52 +209,45 @@ export default function ExportPage() {
     }
   };
 
-  // ฟังก์ชันส่งออกข้อมูล
-  const onSubmit = async (values: ExportValues) => {
+  // ฟังก์ชันส่งออกข้อมูล (ดึงข้อมูลจาก DB โดยตรง)
+  const handleExport = async (values: ExportValues) => {
     if (!user) {
-      toast.error("กรุณาเข้าสู่ระบบ");
+      toast.error("คุณเข้าสู่ระบบก่อนใช้งาน");
       router.push("/login");
       return;
     }
-
-    if (!uploadResult) {
-      toast.error("กรุณาอัปโหลดไฟล์ก่อน");
-      return;
-    }
-
     setIsExporting(true);
-
     try {
-      // ส่งข้อมูลไปยัง API
+      // ไม่ใช้ allPhones จาก state แต่ให้ POST userId ไป แล้ว backend จะไปดึง phones เอง
       const response = await fetch("/api/export", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
-          uploadedFilePath: uploadResult.filePath,
           fileName: values.fileName,
           format: values.format,
           splitFiles: values.splitFiles,
-          splitSize: values.splitFiles ? values.splitSize : undefined,
-          phones: uploadResult.phones, // ส่งข้อมูลเบอร์โทรศัพท์ไปพร้อมกัน
+          splitSize: values.splitFiles ? values.splitSize : undefined
         }),
       });
-
-      const data = await response.json();
-
       if (response.ok) {
-        setExportResult(data);
-        toast.success(
-          `ส่งออกสำเร็จ ${data.fileCount} ไฟล์ (${data.totalCount} เบอร์)`
-        );
+        // ดาวน์โหลดไฟล์โดยตรง (blob)
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${values.fileName || 'export'}.${values.format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success('ดาวน์โหลดไฟล์เรียบร้อยแล้ว');
       } else {
-        toast.error(data.error || "ส่งออกไม่สำเร็จ");
+        const data = await response.json();
+        toast.error(data?.error || 'เกิดข้อผิดพลาดในการ export');
       }
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
+    } catch(err) {
+      toast.error('เกิดข้อผิดพลาดในการ export');
     } finally {
       setIsExporting(false);
     }
@@ -360,7 +376,7 @@ export default function ExportPage() {
               <TabsContent value="export" className="space-y-4">
                 <Form {...form}>
                   <form
-                    onSubmit={form.handleSubmit(onSubmit)}
+                    onSubmit={form.handleSubmit(handleExport)}
                     className="space-y-4"
                   >
                     <FormField
@@ -467,7 +483,7 @@ export default function ExportPage() {
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={isExporting || !uploadResult}
+                      disabled={isExporting || !canExport}
                     >
                       {isExporting ? (
                         "กำลังส่งออกข้อมูล..."
@@ -480,41 +496,7 @@ export default function ExportPage() {
                   </form>
                 </Form>
 
-                {exportResult && (
-                  <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
-                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
-                    <AlertTitle className="text-green-800 dark:text-green-300">
-                      ส่งออกสำเร็จ
-                    </AlertTitle>
-                    <AlertDescription className="text-green-700 dark:text-green-400">
-                      <p className="mt-2">
-                        ส่งออกเบอร์โทรศัพท์สำเร็จ{" "}
-                        <strong>{exportResult.fileCount}</strong> ไฟล์
-                      </p>
-                      {exportResult.files.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          <p className="font-medium">ดาวน์โหลดไฟล์:</p>
-                          <div className="space-y-2">
-                            {exportResult.files.map((fileUrl, index) => (
-                              <Button
-                                key={`file-${fileUrl}-${index}`}
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                asChild
-                              >
-                                <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                                  <Download className="mr-2 h-4 w-4" />
-                                  ดาวน์โหลดไฟล์ {index + 1}
-                                </a>
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                {/* exportResult UI เดิมจะไม่แสดงผลลัพธ์ดาวน์โหลดไฟล์ เพราะ handleExport จะดาวน์โหลดไฟล์โดยตรง */}
               </TabsContent>
             </Tabs>
           </CardContent>

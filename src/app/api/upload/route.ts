@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { validatePhone } from "@/lib/utils/phone-utils";
 import * as XLSX from "xlsx";
@@ -42,7 +42,9 @@ async function readPhonesFromExcel(buffer: ArrayBuffer): Promise<string[]> {
   const worksheet = workbook.Sheets[firstSheetName];
 
   // แปลงข้อมูลเป็น array
-  const data = XLSX.utils.sheet_to_json<{ [key: string]: any }>(worksheet, { header: 1 });
+  const data = XLSX.utils.sheet_to_json<{ [key: string]: any }>(worksheet, {
+    header: 1,
+  });
 
   // กรองเฉพาะเบอร์โทรศัพท์ที่ถูกต้อง
   const validPhones: string[] = [];
@@ -119,19 +121,21 @@ export async function POST(req: NextRequest) {
       "text/plain", // txt
     ];
 
-    if (!validTypes.includes(fileType) &&
-        !fileName.endsWith('.xlsx') &&
-        !fileName.endsWith('.xls') &&
-        !fileName.endsWith('.csv') &&
-        !fileName.endsWith('.txt')) {
+    if (
+      !validTypes.includes(fileType) &&
+      !fileName.endsWith(".xlsx") &&
+      !fileName.endsWith(".xls") &&
+      !fileName.endsWith(".csv") &&
+      !fileName.endsWith(".txt")
+    ) {
       return NextResponse.json(
         { error: "รองรับเฉพาะไฟล์ Excel, CSV หรือ TXT เท่านั้น" },
         { status: 400 }
       );
     }
 
-    // สร้างโฟลเดอร์ถ้ายังไม่มี
-    await ensureUploadsDir();
+    // ไม่ต้องสร้างโฟลเดอร์ uploads เพราะไม่เขียนไฟล์ลงดิสก์แล้ว
+    // await ensureUploadsDir();
 
     // อ่านข้อมูลไฟล์
     const buffer = await file.arrayBuffer();
@@ -139,9 +143,9 @@ export async function POST(req: NextRequest) {
     // วิเคราะห์ข้อมูลเบอร์โทรศัพท์ตามประเภทไฟล์
     let phones: string[] = [];
 
-    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
       phones = await readPhonesFromExcel(buffer);
-    } else if (fileName.endsWith('.csv') || fileType === 'text/csv') {
+    } else if (fileName.endsWith(".csv") || fileType === "text/csv") {
       const content = new TextDecoder().decode(buffer);
       phones = await readPhonesFromCSV(content);
     } else {
@@ -149,16 +153,16 @@ export async function POST(req: NextRequest) {
       phones = await readPhonesFromText(content);
     }
 
-    // บันทึกไฟล์ไว้ในเซิร์ฟเวอร์ (สำหรับเก็บประวัติ)
-    const uniqueFileName = `${Date.now()}_${fileName}`;
-    const filePath = join(uploadsDir, uniqueFileName);
-    await writeFile(filePath, Buffer.from(buffer));
-
+    // ไม่บันทึกไฟล์ลงดิสก์แล้ว
+    // const uniqueFileName = `${Date.now()}_${fileName}`;
+    // const filePath = join(uploadsDir, uniqueFileName);
+    // await writeFile(filePath, Buffer.from(buffer));
+    const uniquePhones = Array.from(new Set(phones));
     return NextResponse.json({
       success: true,
-      totalCount: phones.length,
-      phones: phones.slice(0, 10), // ส่งเฉพาะ 10 เบอร์แรกเพื่อแสดงตัวอย่าง
-      filePath: uniqueFileName,
+      totalCount: uniquePhones.length,
+      phones: uniquePhones.slice(0, 10), // ตัวอย่าง 10 เบอร์แรก
+      allPhones: uniquePhones, // เพิ่ม property เพื่อใช้งานใน UI รอบใหม่ (ส่ง phones ทั้งหมดกลับไป)
     });
   } catch (error) {
     console.error("Upload error:", error);

@@ -3,40 +3,78 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// Normalize เบอร์ เช่น ลบ + - ช่องว่าง
+function normalize(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userId, phones } = await req.json();
 
-    // ตรวจสอบข้อมูลที่ส่งมา
     if (!userId || !phones || !Array.isArray(phones)) {
       return NextResponse.json({ error: "ข้อมูลไม่ครบถ้วน" }, { status: 400 });
     }
 
-    // ตรวจสอบว่ามีข้อมูลเบอร์โทรศัพท์หรือไม่
     if (phones.length === 0) {
-      return NextResponse.json({ error: "ไม่พบข้อมูลเบอร์โทรศัพท์" }, { status: 400 });
+      return NextResponse.json(
+        { error: "ไม่พบข้อมูลเบอร์โทรศัพท์" },
+        { status: 400 }
+      );
     }
 
-    // ค้นหาข้อมูลผู้ใช้
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!user) {
       return NextResponse.json({ error: "ไม่พบข้อมูลผู้ใช้" }, { status: 404 });
     }
 
-    // สร้าง batch ID สำหรับการบันทึกข้อมูล
+    // 1. Normalize และกรองเบอร์ซ้ำภายในลิสต์เอง
+    const normalizedSet = new Set<string>();
+    const normalizedPhones: string[] = [];
+
+    for (const rawPhone of phones) {
+      const phone = normalize(rawPhone);
+      if (phone && !normalizedSet.has(phone)) {
+        normalizedSet.add(phone);
+        normalizedPhones.push(phone);
+      }
+    }
+
+    if (normalizedPhones.length === 0) {
+      return NextResponse.json(
+        { error: "ไม่มีเบอร์โทรศัพท์ที่สามารถบันทึกได้" },
+        { status: 400 }
+      );
+    }
+
+    // 2. ดึงเบอร์ที่เคยบันทึกไว้แล้วของ user
+    const existingPhones = await prisma.phoneNumber.findMany({
+      where: { userId: user.id },
+      select: { number: true },
+    });
+
+    const existingSet = new Set(existingPhones.map((p) => normalize(p.number)));
+
+    // 3. กรองออกเฉพาะเบอร์ที่ยังไม่เคยบันทึก
+    const newPhones = normalizedPhones.filter((p) => !existingSet.has(p));
+
+    if (newPhones.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "ไม่มีเบอร์โทรศัพท์ใหม่ที่จะบันทึก",
+      });
+    }
+
     const batchId = `batch_${Date.now()}`;
 
-    // บันทึกข้อมูลเบอร์โทรศัพท์ลงฐานข้อมูล
-    // ใช้ createMany เพื่อบันทึกข้อมูลจำนวนมากในครั้งเดียว
     const result = await prisma.phoneNumber.createMany({
-      data: phones.map((phone) => ({
+      data: newPhones.map((number) => ({
         userId: user.id,
-        number: phone,
+        number,
         batch: batchId,
       })),
+      skipDuplicates: true, // กันซ้ำในระดับ DB อีกชั้น
     });
 
     return NextResponse.json({

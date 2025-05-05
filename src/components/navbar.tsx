@@ -44,6 +44,12 @@ export function Navbar() {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 สวัสดี, {user.userId} | เครดิต: {user.credits}
               </div>
+              <Link
+                  href="/"
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors"
+                >
+                  หน้าแรก
+                </Link>
               {user.isAdmin && (
                 <Link
                   href="/admin/dashboard"
@@ -52,12 +58,14 @@ export function Navbar() {
                   หน้าแอดมิน
                 </Link>
               )}
-              <Link
-                href="/credit"
-                className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors"
-              >
-                เติมเครดิต
-              </Link>
+                {!user.isAdmin && (
+                <Link
+                  href="/credit"
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors"
+                >
+                  เติมเครดิต
+                </Link>
+                )}
               <Button
                 variant="ghost"
                 className="text-sm"

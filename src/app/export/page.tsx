@@ -234,9 +234,15 @@ export default function ExportPage() {
         // ดาวน์โหลดไฟล์โดยตรง (blob)
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        
+        // ⬇️ ดึงชื่อไฟล์จาก Content-Disposition
+        const disposition = response.headers.get("Content-Disposition");
+        const match = disposition?.match(/filename="?([^"]+)"?/);
+        const filename = match?.[1] || "export.xlsx"; // fallback ถ้าไม่เจอ
+        
+        const a = document.createElement("a");
         a.href = url;
-        a.download = `${values.fileName || 'export'}.${values.format}`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -269,7 +275,7 @@ export default function ExportPage() {
             <Tabs defaultValue="upload" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="upload">1. อัปโหลดข้อมูล</TabsTrigger>
-                <TabsTrigger value="export" disabled={!uploadResult}>
+                <TabsTrigger value="export">
                   2. ส่งออกข้อมูล
                 </TabsTrigger>
               </TabsList>

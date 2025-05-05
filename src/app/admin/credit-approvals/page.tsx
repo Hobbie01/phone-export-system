@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import AdminSidebar from "@/components/AdminSidebar";
+import { toast } from "sonner";
 
 interface CreditTopup {
   id: string;
@@ -21,6 +22,8 @@ export default function CreditApprovals() {
   const router = useRouter();
   const [topups, setTopups] = useState<CreditTopup[]>([]);
   const [selected, setSelected] = useState<CreditTopup | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
     if (!isLoading && (!user || !user.isAdmin)) {
@@ -30,28 +33,57 @@ export default function CreditApprovals() {
 
   useEffect(() => {
     if (user && user.isAdmin) {
-      fetch("/api/admin/pending-topups")
-        .then(res => res.json())
-        .then(setTopups);
+      fetchTopups();
     }
   }, [user]);
 
+  const fetchTopups = async () => {
+    setFetching(true);
+    try {
+      const res = await fetch("/api/admin/pending-topups");
+      const json = await res.json();
+      setTopups(json);
+    } catch (err) {
+      toast.error("โหลดข้อมูลล้มเหลว");
+    } finally {
+      setFetching(false);
+    }
+  };
+
   const handleApprove = async (id: string) => {
-    await fetch(`/api/admin/approve-topup`, {
-      method: "POST",
-      body: JSON.stringify({ id }),
-    });
-    setTopups(topups.filter(t => t.id !== id));
-    setSelected(null);
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/approve-topup`, {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("ไม่สามารถอนุมัติได้");
+      setTopups(topups.filter(t => t.id !== id));
+      toast.success("✅ อนุมัติเรียบร้อย");
+    } catch (err) {
+      toast.error("เกิดข้อผิดพลาดในการอนุมัติ");
+    } finally {
+      setActionLoading(false);
+      setSelected(null);
+    }
   };
 
   const handleReject = async (id: string) => {
-    await fetch(`/api/admin/reject-topup`, {
-      method: "POST",
-      body: JSON.stringify({ id }),
-    });
-    setTopups(topups.filter(t => t.id !== id));
-    setSelected(null);
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/reject-topup`, {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("ไม่สามารถปฏิเสธได้");
+      setTopups(topups.filter(t => t.id !== id));
+      toast.success("❌ ปฏิเสธเรียบร้อย");
+    } catch (err) {
+      toast.error("เกิดข้อผิดพลาดในการปฏิเสธ");
+    } finally {
+      setActionLoading(false);
+      setSelected(null);
+    }
   };
 
   if (isLoading || !user) return <div className="text-center py-12">กำลังโหลดข้อมูล...</div>;
@@ -62,7 +94,10 @@ export default function CreditApprovals() {
       <AdminSidebar />
       <section className="flex-1 w-full">
         <h1 className="text-2xl font-bold mb-4">💳 รายการเติมเครดิตที่รออนุมัติ</h1>
-        {topups.length === 0 ? (
+
+        {fetching ? (
+          <p className="text-gray-600">กำลังโหลดรายการ...</p>
+        ) : topups.length === 0 ? (
           <p className="text-gray-600">ไม่มีรายการรออนุมัติ</p>
         ) : (
           <div className="space-y-4">
@@ -107,18 +142,21 @@ export default function CreditApprovals() {
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   onClick={() => handleReject(selected.id)}
-                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                  disabled={actionLoading}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded disabled:opacity-50"
                 >
                   ❌ ปฏิเสธ
                 </button>
                 <button
                   onClick={() => handleApprove(selected.id)}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                  disabled={actionLoading}
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
                 >
                   ✅ อนุมัติ
                 </button>
                 <button
                   onClick={() => setSelected(null)}
+                  disabled={actionLoading}
                   className="ml-auto text-gray-500 hover:underline"
                 >
                   ปิด

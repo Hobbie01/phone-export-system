@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 const adminPages = [
   { name: "แดชบอร์ด", href: "/admin/dashboard", icon: "📊" },
   { name: "อนุมัติเครดิต", href: "/admin/credit-approvals", icon: "💳" },
+  { name: "ติดต่อ", href: "/admin/contact-info", icon: "📞" },
 ];
 
 export default function AdminSidebar() {

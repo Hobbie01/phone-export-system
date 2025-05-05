@@ -93,7 +93,7 @@ export default function CreditApprovals() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-lg">
               <h2 className="text-xl font-semibold mb-2">รายละเอียด</h2>
-              <p>ผู้ใช้: {selected.userId}</p>
+              <p>ผู้ใช้: {selected.user}</p>
               <p>จำนวนเงิน: {selected.amount}</p>
               <p>บัญชี: {selected.bankAccount || "-"}</p>
               <p>เวลาทำรายการ: {selected.transactionTime || "-"}</p>

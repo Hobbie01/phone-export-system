@@ -290,7 +290,6 @@ export default function ExportPage() {
                         <li>รองรับไฟล์ XLSX, CSV, และ TXT</li>
                         <li>ระบบจะอ่านข้อมูลจากคอลัมน์ A เท่านั้น</li>
                         <li>ระบบจะกรองเฉพาะข้อมูลที่เป็นเบอร์โทรศัพท์ 10 หลัก</li>
-                        <li>ขนาดไฟล์ต้องไม่เกิน 10MB</li>
                       </ul>
                     </AlertDescription>
                   </Alert>

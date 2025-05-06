@@ -102,16 +102,6 @@ export async function POST(req: NextRequest) {
 
     const fileType = file.type;
     const fileName = file.name;
-    const fileSize = file.size;
-
-    // ตรวจสอบขนาดไฟล์ (ไม่เกิน 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (fileSize > maxSize) {
-      return NextResponse.json(
-        { error: "ขนาดไฟล์ต้องไม่เกิน 10MB" },
-        { status: 400 }
-      );
-    }
 
     // ตรวจสอบประเภทไฟล์
     const validTypes = [
